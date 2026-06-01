@@ -6,7 +6,7 @@
 
 #include <cstring>
 
-#include "permission_plus_linux_plugin_private.h"
+#include "permission_plus_api.g.h"
 
 #define PERMISSION_PLUS_LINUX_PLUGIN(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), permission_plus_linux_plugin_get_type(), \
@@ -14,34 +14,113 @@
 
 struct _PermissionPlusLinuxPlugin {
   GObject parent_instance;
+  FlPluginRegistrar* registrar;
 };
 
 G_DEFINE_TYPE(PermissionPlusLinuxPlugin, permission_plus_linux_plugin, g_object_get_type())
 
-// Called when a method call is received from Flutter.
-static void permission_plus_linux_plugin_handle_method_call(
-    PermissionPlusLinuxPlugin* self,
-    FlMethodCall* method_call) {
-  g_autoptr(FlMethodResponse) response = nullptr;
+// ── Permission Status Helper ──────────────────────────────────────────────
 
-  const gchar* method = fl_method_call_get_name(method_call);
+static permission_plus_linuxPermissionStatusMessage get_permission_status(
+    permission_plus_linuxPermissionTypeMessage permission) {
+  // On Linux desktop, native apps generally have unrestricted access to most
+  // system resources (files, network, etc.) running as the current user.
+  // We return 'GRANTED' for all permission types.
+  //
+  // NOTE: If this plugin were to support Sandboxed apps (Flatpak / Snap),
+  // we would need to interface with xdg-desktop-portal (D-Bus) to request
+  // permissions (e.g., Camera, Microphone, Location).
+  // For standard Linux binaries, no such permission model exists.
+  return PERMISSION_PLUS_LINUX_PERMISSION_STATUS_MESSAGE_GRANTED;
+}
 
-  if (strcmp(method, "getPlatformVersion") == 0) {
-    response = get_platform_version();
-  } else {
-    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+// ── Pigeon Host API Implementation ────────────────────────────────────────
+
+static void check_permission_cb(
+    permission_plus_linuxPermissionTypeMessage permission,
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  permission_plus_linux_permission_plus_host_api_respond_check_permission(
+      response_handle, get_permission_status(permission));
+}
+
+static void request_permission_cb(
+    permission_plus_linuxPermissionTypeMessage permission,
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  permission_plus_linux_permission_plus_host_api_respond_request_permission(
+      response_handle, get_permission_status(permission));
+}
+
+static void request_permissions_cb(
+    FlValue* permissions,
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  g_autoptr(FlValue) return_value = fl_value_new_list();
+
+  if (fl_value_get_type(permissions) == FL_VALUE_TYPE_LIST) {
+    size_t length = fl_value_get_length(permissions);
+    for (size_t i = 0; i < length; i++) {
+      FlValue* perm_val = fl_value_get_list_value(permissions, i);
+      if (fl_value_get_type(perm_val) == FL_VALUE_TYPE_INT) {
+        auto perm = static_cast<permission_plus_linuxPermissionTypeMessage>(
+            fl_value_get_int(perm_val));
+
+        // Create the map entry object
+        g_autoptr(permission_plus_linuxPermissionStatusMapEntry) entry =
+            permission_plus_linux_permission_status_map_entry_new(
+                perm, get_permission_status(perm));
+
+        // Convert the entry back to FlValue using Pigeon's internal encoding
+        // Since we don't have access to the encode function directly, we use
+        // Custom value wrapping.
+        FlValue* custom_value = fl_value_new_custom(
+            permission_plus_linux_permission_status_map_entry_type_id,
+            entry, (GDestroyNotify)g_object_unref);
+
+        fl_value_append_take(return_value, custom_value);
+      }
+    }
   }
 
-  fl_method_call_respond(method_call, response, nullptr);
+  permission_plus_linux_permission_plus_host_api_respond_request_permissions(
+      response_handle, return_value);
 }
 
-FlMethodResponse* get_platform_version() {
-  struct utsname uname_data = {};
-  uname(&uname_data);
-  g_autofree gchar *version = g_strdup_printf("Linux %s", uname_data.version);
-  g_autoptr(FlValue) result = fl_value_new_string(version);
-  return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+static void open_settings_cb(
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  // On Linux, there's no single "App Settings" page.
+  // A best-effort approach would be to open GNOME Settings,
+  // but it's not standardized across DEs. Returning false.
+  permission_plus_linux_permission_plus_host_api_respond_open_settings(
+      response_handle, FALSE);
 }
+
+static void should_show_rationale_cb(
+    permission_plus_linuxPermissionTypeMessage permission,
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  permission_plus_linux_permission_plus_host_api_respond_should_show_rationale(
+      response_handle, FALSE);
+}
+
+static void get_location_accuracy_cb(
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  permission_plus_linux_permission_plus_host_api_respond_get_location_accuracy(
+      response_handle, PERMISSION_PLUS_LINUX_LOCATION_ACCURACY_MESSAGE_PRECISE);
+}
+
+static void request_temporary_precise_location_cb(
+    const gchar* purpose_key,
+    permission_plus_linuxPermissionPlusHostApiResponseHandle* response_handle,
+    gpointer user_data) {
+  permission_plus_linux_permission_plus_host_api_respond_request_temporary_precise_location(
+      response_handle, PERMISSION_PLUS_LINUX_PERMISSION_STATUS_MESSAGE_GRANTED);
+}
+
+// ── Plugin Lifecycle ──────────────────────────────────────────────────────
 
 static void permission_plus_linux_plugin_dispose(GObject* object) {
   G_OBJECT_CLASS(permission_plus_linux_plugin_parent_class)->dispose(object);
@@ -53,24 +132,28 @@ static void permission_plus_linux_plugin_class_init(PermissionPlusLinuxPluginCla
 
 static void permission_plus_linux_plugin_init(PermissionPlusLinuxPlugin* self) {}
 
-static void method_call_cb(FlMethodChannel* channel, FlMethodCall* method_call,
-                           gpointer user_data) {
-  PermissionPlusLinuxPlugin* plugin = PERMISSION_PLUS_LINUX_PLUGIN(user_data);
-  permission_plus_linux_plugin_handle_method_call(plugin, method_call);
-}
-
 void permission_plus_linux_plugin_register_with_registrar(FlPluginRegistrar* registrar) {
   PermissionPlusLinuxPlugin* plugin = PERMISSION_PLUS_LINUX_PLUGIN(
       g_object_new(permission_plus_linux_plugin_get_type(), nullptr));
+  plugin->registrar = registrar;
 
-  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-  g_autoptr(FlMethodChannel) channel =
-      fl_method_channel_new(fl_plugin_registrar_get_messenger(registrar),
-                            "permission_plus_linux",
-                            FL_METHOD_CODEC(codec));
-  fl_method_channel_set_method_call_handler(channel, method_call_cb,
-                                            g_object_ref(plugin),
-                                            g_object_unref);
+  static permission_plus_linuxPermissionPlusHostApiVTable vtable = {
+      .check_permission = check_permission_cb,
+      .request_permission = request_permission_cb,
+      .request_permissions = request_permissions_cb,
+      .open_settings = open_settings_cb,
+      .should_show_rationale = should_show_rationale_cb,
+      .get_location_accuracy = get_location_accuracy_cb,
+      .request_temporary_precise_location = request_temporary_precise_location_cb,
+  };
+
+  permission_plus_linux_permission_plus_host_api_set_method_handlers(
+      fl_plugin_registrar_get_messenger(registrar),
+      nullptr, // suffix
+      &vtable,
+      plugin, // user_data
+      nullptr // user_data_free_func
+  );
 
   g_object_unref(plugin);
 }

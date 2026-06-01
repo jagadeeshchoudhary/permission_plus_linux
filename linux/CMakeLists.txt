@@ -14,11 +14,13 @@ set(PLUGIN_NAME "permission_plus_linux_plugin")
 # Any new source files that you add to the plugin should be added here.
 list(APPEND PLUGIN_SOURCES
   "permission_plus_linux_plugin.cc"
+  "permission_plus_api.g.cc"
 )
 
 # Define the plugin library target. Its name must not be changed (see comment
 # on PLUGIN_NAME above).
 add_library(${PLUGIN_NAME} SHARED
+  "include/permission_plus_linux/permission_plus_linux_plugin.h"
   ${PLUGIN_SOURCES}
 )
 
