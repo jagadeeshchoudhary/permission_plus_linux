@@ -14,13 +14,11 @@ import 'package:permission_plus_linux/permission_plus_linux.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('checkPermission returns a valid status',
-      (WidgetTester tester) async {
+  testWidgets('checkPermission returns a valid status', (
+    WidgetTester tester,
+  ) async {
     final plugin = PermissionPlusLinux();
     final status = await plugin.checkPermission(PermissionType.camera);
-    expect(
-      PermissionStatus.values.contains(status),
-      true,
-    );
+    expect(PermissionStatus.values.contains(status), true);
   });
 }

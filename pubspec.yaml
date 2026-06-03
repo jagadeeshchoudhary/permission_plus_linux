@@ -7,7 +7,6 @@ homepage: https://github.com/jagadeeshchoudhary/permission_plus_linux
 repository: https://github.com/jagadeeshchoudhary/permission_plus_linux/tree/main
 issue_tracker: https://github.com/jagadeeshchoudhary/permission_plus_linux/issues
 
-
 environment:
   sdk: ^3.12.0
   flutter: '>=3.3.0'
@@ -16,13 +15,13 @@ dependencies:
   flutter:
     sdk: flutter
   meta: ^1.18.0
-  permission_plus_platform_interface: ^0.1.0
+  permission_plus_platform_interface: ^1.0.0
   plugin_platform_interface: ^2.0.2
 
 dev_dependencies:
+  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
   pigeon: ^26.3.4
 
 flutter:
@@ -32,7 +31,7 @@ flutter:
         dartPluginClass: PermissionPlusLinux
         pluginClass: PermissionPlusLinuxPlugin
 
-topics: 
+topics:
   - permissions
   - linux
   - plugin
