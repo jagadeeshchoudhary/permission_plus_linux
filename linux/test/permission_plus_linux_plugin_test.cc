@@ -2,29 +2,32 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "include/permission_plus_linux/permission_plus_linux_plugin.h"
 #include "permission_plus_linux_plugin_private.h"
 
-// This demonstrates a simple unit test of the C portion of this plugin's
-// implementation.
-//
-// Once you have built the plugin's example app, you can run these tests
-// from the command line. For instance, for a plugin called my_plugin
-// built for x64 debug, run:
-// $ build/linux/x64/debug/plugins/my_plugin/my_plugin_test
+// Tests for the permission_plus_linux plugin's C implementation.
 
 namespace permission_plus_linux {
 namespace test {
 
-TEST(PermissionPlusLinuxPlugin, GetPlatformVersion) {
-  g_autoptr(FlMethodResponse) response = get_platform_version();
-  ASSERT_NE(response, nullptr);
-  ASSERT_TRUE(FL_IS_METHOD_SUCCESS_RESPONSE(response));
-  FlValue* result = fl_method_success_response_get_result(
-      FL_METHOD_SUCCESS_RESPONSE(response));
-  ASSERT_EQ(fl_value_get_type(result), FL_VALUE_TYPE_STRING);
-  // The full string varies, so just validate that it has the right format.
-  EXPECT_THAT(fl_value_get_string(result), testing::StartsWith("Linux "));
+TEST(PermissionPlusLinuxPlugin, CheckPermissionReturnsGranted) {
+  // On standard Linux desktop, all permissions should return GRANTED.
+  permission_plus_linuxPermissionStatusMessage status =
+      get_permission_status(PERMISSION_PLUS_LINUX_PERMISSION_TYPE_MESSAGE_CAMERA);
+  EXPECT_EQ(status, PERMISSION_PLUS_LINUX_PERMISSION_STATUS_MESSAGE_GRANTED);
+}
+
+TEST(PermissionPlusLinuxPlugin, AllPermissionTypesReturnGranted) {
+  // Verify multiple permission types all return granted.
+  permission_plus_linuxPermissionTypeMessage types[] = {
+      PERMISSION_PLUS_LINUX_PERMISSION_TYPE_MESSAGE_CAMERA,
+      PERMISSION_PLUS_LINUX_PERMISSION_TYPE_MESSAGE_MICROPHONE,
+      PERMISSION_PLUS_LINUX_PERMISSION_TYPE_MESSAGE_LOCATION,
+  };
+
+  for (auto type : types) {
+    EXPECT_EQ(get_permission_status(type),
+              PERMISSION_PLUS_LINUX_PERMISSION_STATUS_MESSAGE_GRANTED);
+  }
 }
 
 }  // namespace test

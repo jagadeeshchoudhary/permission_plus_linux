@@ -6,7 +6,7 @@
 
 #include <cstring>
 
-#include "permission_plus_api.g.h"
+#include "permission_plus_linux_plugin_private.h"
 
 #define PERMISSION_PLUS_LINUX_PLUGIN(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), permission_plus_linux_plugin_get_type(), \
@@ -21,7 +21,7 @@ G_DEFINE_TYPE(PermissionPlusLinuxPlugin, permission_plus_linux_plugin, g_object_
 
 // ── Permission Status Helper ──────────────────────────────────────────────
 
-static permission_plus_linuxPermissionStatusMessage get_permission_status(
+permission_plus_linuxPermissionStatusMessage get_permission_status(
     permission_plus_linuxPermissionTypeMessage permission) {
   // On Linux desktop, native apps generally have unrestricted access to most
   // system resources (files, network, etc.) running as the current user.
